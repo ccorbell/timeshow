@@ -9,7 +9,7 @@ from urllib.parse import unquote, urlparse
 
 import webview
 
-DEFAULT_SECONDS_PER_IMAGE = 60
+DEFAULT_SECONDS_PER_IMAGE = 120
 
 
 def _file_uri_to_path(image_url):
@@ -143,7 +143,7 @@ class ConfigApi:
                 )
             else:
                 selection = self._window.create_file_dialog(
-                    webview.FileDialog.FOLDER,
+                    webview.FOLDER_DIALOG,
                     directory=start_dir,
                     allow_multiple=False,
                 )
@@ -449,7 +449,7 @@ def run_configuration_window(initial_config=None):
     pathInput.value = DEFAULT_CONFIG.path || '';
     maxInput.value = String(DEFAULT_CONFIG.max_images ?? 0);
     randomInput.checked = Boolean(DEFAULT_CONFIG.random_order);
-    applySeconds(Number(DEFAULT_CONFIG.time_s) || 60);
+    applySeconds(Number(DEFAULT_CONFIG.time_s) || 120);
     setModeHint(modeSelect.value);
   </script>
 </body>

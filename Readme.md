@@ -2,36 +2,57 @@
 
 Simple timed slideshow tool for artist reference practice.
 
-## Install
+## Requirements and Setup
 
+Your system must have Python 3 installed to run this program.
+
+Clone or unzip the timeshow source to the directory where you want to keep it.
+
+Use a Terminal application (macOS / Linux) or Command Prompt (Windows) to launch timeshow using a script in the `timeshow/bin` folder.
+
+If you want to run the script from anywhere, add the `timeshow/bin` directory to your shell or system `PATH`.
+
+## Running timeshow
+
+To run timeshow from Terminal or Command Prompt, invoke the appropriate script in `timeshow/bin`:
+
+**macOS / Linux**
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+cd timeshow
+bin/timeshow.sh
 ```
 
-## Run
-
-```bash
-python3 -m timeshow.main mode=shallow_dir path=/absolute/path/to/images time=60
+**Windows**
+```bat
+cd timeshow
+bin\timeshow.cmd
 ```
 
-If `path=` is omitted, timeshow opens a GUI configuration window where you can set mode, path, timing, random order, and max images.
+On first run, the launcher script creates a Python virtual environment in `timeshow/.venv` and installs dependencies from `requirements.txt`.
 
-Alternatively, you can use the shell script wrapper:
+When you run the program with no arguments, a configuration dialog appears so you can choose the image source and slideshow settings.
 
-```bash
-./bin/timeshow.sh mode=shallow_dir path=/absolute/path/to/images time=60
+### Command-line arguments
+
+```
+mode=<shallow_dir|deep_dir|url_index> path=<file-or-directory> [time=<seconds>] [max=<number>] [random=<true|false>]
 ```
 
 Modes:
-- `mode=shallow_dir`: only files directly in `path`
-- `mode=deep_dir`: recurse through subdirectories
-- `mode=url_index`: `path` points to a text file with one URL or file path per line
+- `mode=shallow_dir`: only use image files directly below `path`
+- `mode=deep_dir`: recurse through subdirectories of path to find images
+- `mode=url_index`: `path` points to a text file with one URL or file path per line; see `dancer-urls-sample-file.txt` for an example
+
+Defaults:
+- `time=120` (2 minutes)
+- `max=0` (no limit to number of images in the sequence)
+- `random=true`
+- `mode=shallow_dir`
 
 Optional args:
-- `max=50` limits how many images are selected
-- `random=false` disables randomization
+- `time=90` sets image-display seconds; 120 seconds is the default if omitted
+- `max=50` limits how many images are selected; no limit if omitted (or 0)
+- `random=false` disables randomization, shows images in order
 
 ## UI Controls
 

@@ -11,6 +11,7 @@ ARGPREFIX_TIME = "time="
 ARGPREFIX_PATH = "path="
 ARGPREFIX_MAX = "max="
 ARGPREFIX_RANDOM = "random="
+DEFAULT_TIME_SECONDS = 120
 
 VALID_MODES = {
     showmode_shallow_dir,
@@ -28,7 +29,7 @@ Modes:
   {showmode_url_index}    Read image URLs/paths from a text file at path
 
 Options:
-  time=<seconds>          Seconds to show each image (default: {60})
+  time=<seconds>          Seconds to show each image (default: {DEFAULT_TIME_SECONDS})
   max=<count>             Limit the number of selected images (default: 0 = no limit)
   random=<true|false>     Shuffle selected images before showing them (default: true)
   -h, --help              Show this help text
@@ -137,7 +138,7 @@ if __name__ == '__main__':
             {
                 "mode": mode,
                 "path": "",
-                "time_s": time_s if time_s is not None else 60,
+                "time_s": time_s if time_s is not None else DEFAULT_TIME_SECONDS,
                 "max_images": max_images,
                 "random_order": random_order,
             }
