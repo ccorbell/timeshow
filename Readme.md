@@ -65,3 +65,11 @@ Optional args:
 - `Pause` / `Resume` toggles countdown
 - Keyboard: `Space` pause/resume, `Left` previous, `Right` next
 
+## Screenshots
+
+### Settings window:
+
+![Settings window image](doc/screenshot-settings.png)
+
+### Slideshow:
+![Slideshow image](doc/screenshot-slideshow.png)
