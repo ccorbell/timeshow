@@ -143,7 +143,7 @@ class ConfigApi:
                 )
             else:
                 selection = self._window.create_file_dialog(
-                    webview.FOLDER_DIALOG,
+                    webview.FileDialog.FOLDER,
                     directory=start_dir,
                     allow_multiple=False,
                 )

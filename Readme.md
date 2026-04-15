@@ -2,6 +2,11 @@
 
 Simple timed slideshow tool for artist reference practice.
 
+**Version:** 1.0\
+**Author:** C. A. Corbell\
+**License:** MIT\
+**Source:** https://github.com/ccorbell/timeshow
+
 ## Requirements and Setup
 
 Your system must have Python 3 installed to run this program.
