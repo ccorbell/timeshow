@@ -5,7 +5,7 @@ import os
 import sys
 from timeshow.imagecollector import ImageCollector
 from timeshow.showmode import showmode_deep_dir, showmode_shallow_dir, showmode_url_index
-from timeshow.ui_webview import run_slideshow_window
+from timeshow.ui_webview import run_configuration_window, run_slideshow_window
 ARGPREFIX_MODE = "mode="
 ARGPREFIX_TIME = "time="
 ARGPREFIX_PATH = "path="
@@ -20,6 +20,7 @@ VALID_MODES = {
 
 USAGE_TEXT = f"""Usage:
   python3 -m timeshow.main mode=<mode> path=<path> [time=<seconds>] [max=<count>] [random=<true|false>]
+  python3 -m timeshow.main [mode=<mode>] [time=<seconds>] [max=<count>] [random=<true|false>]   # opens GUI setup
 
 Modes:
   {showmode_shallow_dir}  Show supported images directly inside path
@@ -130,6 +131,25 @@ if __name__ == '__main__':
         else:
             print_usage(f"Unknown argument '{arg}'.")
             sys.exit(1)
+
+    if not path:
+        config = run_configuration_window(
+            {
+                "mode": mode,
+                "path": "",
+                "time_s": time_s if time_s is not None else 60,
+                "max_images": max_images,
+                "random_order": random_order,
+            }
+        )
+        if config is None:
+            sys.exit(0)
+
+        mode = config.get("mode", mode)
+        path = config.get("path", path)
+        time_s = config.get("time_s", time_s)
+        max_images = config.get("max_images", max_images)
+        random_order = config.get("random_order", random_order)
 
     validation_error = _validate_inputs(mode, path, time_s, max_images)
     if validation_error is not None:

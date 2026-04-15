@@ -16,6 +16,8 @@ pip install -r requirements.txt
 python3 -m timeshow.main mode=shallow_dir path=/absolute/path/to/images time=60
 ```
 
+If `path=` is omitted, timeshow opens a GUI configuration window where you can set mode, path, timing, random order, and max images.
+
 Alternatively, you can use the shell script wrapper:
 
 ```bash

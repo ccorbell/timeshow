@@ -1,0 +1,14 @@
+# Ensure Windows batch files have CRLF line endings
+*.cmd eol=crlf
+*.bat eol=crlf
+
+# Ensure shell scripts have LF line endings
+*.sh eol=lf
+
+# Ensure Python files have LF line endings
+*.py eol=lf
+
+# Ensure text documentation files have LF line endings
+*.md eol=lf
+*.txt eol=lf
+

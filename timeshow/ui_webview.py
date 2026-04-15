@@ -9,7 +9,6 @@ from urllib.parse import unquote, urlparse
 
 import webview
 
-
 DEFAULT_SECONDS_PER_IMAGE = 60
 
 
@@ -55,6 +54,414 @@ class SlideshowApi:
         resolved_src = f"data:{mime_type};base64,{encoded}"
         self._resolved_src_cache[image_url] = resolved_src
         return resolved_src
+
+
+class ConfigApi:
+    def __init__(self, initial_config):
+        self.initial_config = initial_config
+        self.result = None
+        self._window = None
+
+    def set_window(self, window):
+        self._window = window
+
+    def get_initial_config(self):
+        return self.initial_config
+
+    def submit_config(self, config):
+        if not isinstance(config, dict):
+            return {"ok": False, "error": "Invalid configuration payload."}
+
+        mode = str(config.get("mode", "")).strip()
+        path = str(config.get("path", "")).strip()
+
+        try:
+            max_images = int(config.get("max_images", 0))
+        except (TypeError, ValueError):
+            return {"ok": False, "error": "Maximum images must be an integer."}
+
+        try:
+            time_s = int(config.get("time_s", DEFAULT_SECONDS_PER_IMAGE))
+        except (TypeError, ValueError):
+            return {"ok": False, "error": "Time must be an integer."}
+
+        random_value = config.get("random_order", True)
+        if isinstance(random_value, bool):
+            random_order = random_value
+        elif isinstance(random_value, str):
+            random_order = random_value.strip().lower() in {"1", "true", "yes", "y"}
+        else:
+            random_order = bool(random_value)
+
+        if not path:
+            return {"ok": False, "error": "Please select or enter a path."}
+        if time_s <= 0:
+            return {"ok": False, "error": "Time must be a positive number of seconds."}
+        if max_images < 0:
+            return {"ok": False, "error": "Maximum images must be zero or higher."}
+
+        self.result = {
+            "mode": mode,
+            "path": path,
+            "time_s": time_s,
+            "max_images": max_images,
+            "random_order": random_order,
+        }
+
+        if self._window is not None:
+            self._window.destroy()
+
+        return {"ok": True}
+
+    def cancel(self):
+        self.result = None
+        if self._window is not None:
+            self._window.destroy()
+        return {"ok": True}
+
+    def pick_path(self, mode, current_path=""):
+        if self._window is None:
+            return {"ok": False, "error": "Window is not ready."}
+
+        start_dir = ""
+        if current_path:
+            expanded = os.path.expanduser(str(current_path))
+            if os.path.isdir(expanded):
+                start_dir = expanded
+            else:
+                parent_dir = os.path.dirname(expanded)
+                if os.path.isdir(parent_dir):
+                    start_dir = parent_dir
+
+        try:
+            if mode == "url_index":
+                selection = self._window.create_file_dialog(
+                    webview.OPEN_DIALOG,
+                    directory=start_dir,
+                    allow_multiple=False,
+                    file_types=("Text files (*.txt;*.text)", "All files (*.*)"),
+                )
+            else:
+                selection = self._window.create_file_dialog(
+                    webview.FileDialog.FOLDER,
+                    directory=start_dir,
+                    allow_multiple=False,
+                )
+        except Exception as exc:
+            return {"ok": False, "error": str(exc)}
+
+        if not selection:
+            return {"ok": True, "path": ""}
+
+        if isinstance(selection, (list, tuple)):
+            selected_path = selection[0]
+        else:
+            selected_path = selection
+
+        return {"ok": True, "path": selected_path}
+
+
+def run_configuration_window(initial_config=None):
+    defaults = {
+        "mode": "shallow_dir",
+        "path": "",
+        "time_s": DEFAULT_SECONDS_PER_IMAGE,
+        "max_images": 0,
+        "random_order": True,
+    }
+    if initial_config:
+        defaults.update(initial_config)
+
+    html = """<!doctype html>
+<html lang=\"en\">
+<head>
+  <meta charset=\"utf-8\" />
+  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />
+  <title>timeshow configuration</title>
+  <style>
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      background: #111;
+      color: #f0f0f0;
+      font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", Roboto, sans-serif;
+    }
+    .wrap {
+      box-sizing: border-box;
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    h1 {
+      margin: 0 0 12px;
+      font-size: 22px;
+      font-weight: 600;
+    }
+    .field {
+      margin: 14px 0;
+    }
+    .field label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 14px;
+    }
+    .row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    input, select {
+      background: #1f1f1f;
+      border: 1px solid #444;
+      color: #fff;
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 14px;
+    }
+    input[type=\"text\"] {
+      width: min(100%, 520px);
+    }
+    input[type=\"number\"] {
+      width: 120px;
+    }
+    .hint {
+      color: #b9b9b9;
+      font-size: 12px;
+      margin-top: 6px;
+    }
+    .presets {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    button {
+      border: 1px solid #555;
+      background: #2b2b2b;
+      color: #fff;
+      border-radius: 6px;
+      padding: 8px 14px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    button:hover {
+      background: #3a3a3a;
+    }
+    .actions {
+      margin-top: 18px;
+      display: flex;
+      gap: 10px;
+    }
+    .error {
+      min-height: 20px;
+      color: #ff8b8b;
+      font-size: 13px;
+      margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+  <div class=\"wrap\">
+    <h1>timeshow configuration</h1>
+    <form id=\"configForm\">
+      <div class=\"field\">
+        <label for=\"modeSelect\">Mode</label>
+        <select id=\"modeSelect\" required>
+          <option value=\"shallow_dir\">shallow_dir</option>
+          <option value=\"deep_dir\">deep_dir</option>
+          <option value=\"url_index\">url_index</option>
+        </select>
+        <div class=\"hint\" id=\"modeHint\"></div>
+      </div>
+
+      <div class=\"field\">
+        <label for=\"pathInput\">Path</label>
+        <div class=\"row\">
+          <input id=\"pathInput\" type=\"text\" placeholder=\"/path/to/images/or/index.txt\" required />
+          <button id=\"browseBtn\" type=\"button\">Browse...</button>
+        </div>
+      </div>
+
+      <div class=\"field\">
+        <label>Time per image</label>
+        <div class=\"row\">
+          <input id=\"timeValue\" type=\"number\" min=\"1\" step=\"1\" required />
+          <select id=\"timeUnit\">
+            <option value=\"seconds\">Seconds</option>
+            <option value=\"minutes\">Minutes</option>
+          </select>
+        </div>
+        <div class=\"presets\">
+          <label for=\"timePreset\">Preset</label>
+          <select id=\"timePreset\">
+            <option value=\"\">Choose preset...</option>
+            <option value=\"30\">30 seconds</option>
+            <option value=\"60\">1 minute</option>
+            <option value=\"90\">90 seconds</option>
+            <option value=\"120\">2 minutes</option>
+            <option value=\"180\">3 minutes</option>
+            <option value=\"300\">5 minutes</option>
+            <option value=\"600\">10 minutes</option>
+            <option value=\"900\">15 minutes</option>
+            <option value=\"1200\">20 minutes</option>
+            <option value=\"1800\">30 minutes</option>
+          </select>
+        </div>
+      </div>
+
+      <div class=\"field\">
+        <label for=\"maxInput\">Maximum images (0 = no limit)</label>
+        <input id=\"maxInput\" type=\"number\" min=\"0\" step=\"1\" />
+      </div>
+
+      <div class=\"field\">
+        <label class=\"row\" for=\"randomInput\">
+          <input id=\"randomInput\" type=\"checkbox\" />
+          Random order
+        </label>
+      </div>
+
+      <div class=\"error\" id=\"errorText\"></div>
+
+      <div class=\"actions\">
+        <button type=\"submit\">Start slideshow</button>
+        <button id=\"cancelBtn\" type=\"button\">Cancel</button>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    const DEFAULT_CONFIG = {{DEFAULT_CONFIG_JSON}};
+
+    const modeSelect = document.getElementById('modeSelect');
+    const pathInput = document.getElementById('pathInput');
+    const timeValue = document.getElementById('timeValue');
+    const timeUnit = document.getElementById('timeUnit');
+    const timePreset = document.getElementById('timePreset');
+    const maxInput = document.getElementById('maxInput');
+    const randomInput = document.getElementById('randomInput');
+    const modeHint = document.getElementById('modeHint');
+    const errorText = document.getElementById('errorText');
+    const cancelBtn = document.getElementById('cancelBtn');
+    const browseBtn = document.getElementById('browseBtn');
+
+    function setModeHint(mode) {
+      if (mode === 'url_index') {
+        modeHint.textContent = 'Path should be a text file with one URL or file path per line.';
+      } else if (mode === 'deep_dir') {
+        modeHint.textContent = 'Path should be a directory. Images are searched recursively.';
+      } else {
+        modeHint.textContent = 'Path should be a directory. Only files in that directory are used.';
+      }
+    }
+
+    function applySeconds(seconds) {
+      if (seconds >= 60 && seconds % 60 === 0) {
+        timeUnit.value = 'minutes';
+        timeValue.value = String(seconds / 60);
+      } else {
+        timeUnit.value = 'seconds';
+        timeValue.value = String(seconds);
+      }
+    }
+
+    function getSecondsValue() {
+      const raw = Number(timeValue.value);
+      if (!Number.isFinite(raw) || raw <= 0) {
+        return NaN;
+      }
+      if (timeUnit.value === 'minutes') {
+        return Math.round(raw * 60);
+      }
+      return Math.round(raw);
+    }
+
+    function showError(message) {
+      errorText.textContent = message || '';
+    }
+
+    modeSelect.addEventListener('change', () => {
+      setModeHint(modeSelect.value);
+    });
+
+    timePreset.addEventListener('change', () => {
+      const value = Number(timePreset.value);
+      if (Number.isFinite(value) && value > 0) {
+        applySeconds(value);
+      }
+    });
+
+    cancelBtn.addEventListener('click', async () => {
+      if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.cancel === 'function') {
+        await window.pywebview.api.cancel();
+      }
+    });
+
+    browseBtn.addEventListener('click', async () => {
+      showError('');
+      if (!window.pywebview || !window.pywebview.api || typeof window.pywebview.api.pick_path !== 'function') {
+        showError('Path picker is not available.');
+        return;
+      }
+
+      const response = await window.pywebview.api.pick_path(modeSelect.value, pathInput.value.trim());
+      if (!response || !response.ok) {
+        showError((response && response.error) || 'Unable to open path picker.');
+        return;
+      }
+      if (response.path) {
+        pathInput.value = String(response.path);
+      }
+    });
+
+    document.getElementById('configForm').addEventListener('submit', async (event) => {
+      event.preventDefault();
+      showError('');
+
+      const timeSeconds = getSecondsValue();
+      if (!Number.isFinite(timeSeconds) || timeSeconds <= 0) {
+        showError('Time must be a positive value.');
+        return;
+      }
+
+      const payload = {
+        mode: modeSelect.value,
+        path: pathInput.value.trim(),
+        time_s: timeSeconds,
+        max_images: Number(maxInput.value || 0),
+        random_order: randomInput.checked,
+      };
+
+      if (!window.pywebview || !window.pywebview.api || typeof window.pywebview.api.submit_config !== 'function') {
+        showError('Configuration API is not available.');
+        return;
+      }
+
+      const response = await window.pywebview.api.submit_config(payload);
+      if (!response || !response.ok) {
+        showError((response && response.error) || 'Unable to start slideshow.');
+      }
+    });
+
+    modeSelect.value = DEFAULT_CONFIG.mode || 'shallow_dir';
+    pathInput.value = DEFAULT_CONFIG.path || '';
+    maxInput.value = String(DEFAULT_CONFIG.max_images ?? 0);
+    randomInput.checked = Boolean(DEFAULT_CONFIG.random_order);
+    applySeconds(Number(DEFAULT_CONFIG.time_s) || 60);
+    setModeHint(modeSelect.value);
+  </script>
+</body>
+</html>
+"""
+
+    html = html.replace("{{DEFAULT_CONFIG_JSON}}", json.dumps(defaults))
+    api = ConfigApi(defaults)
+    window = webview.create_window("timeshow setup", html=html, width=760, height=620, js_api=api)
+    api.set_window(window)
+    webview.start()
+    return api.result
 
 
 def run_slideshow_window(image_urls, time_s=None):
@@ -264,8 +671,10 @@ def run_slideshow_window(image_urls, time_s=None):
         paused = !paused;
         updateView();
       } else if (event.key === 'ArrowRight') {
+        event.preventDefault();
         goNext(false);
       } else if (event.key === 'ArrowLeft') {
+        event.preventDefault();
         goBack();
       }
     });
