@@ -2,7 +2,7 @@
 
 Simple timed slideshow tool for artist reference practice.
 
-**Version:** 1.0\
+**Version:** 1.1\
 **Author:** C. A. Corbell\
 **License:** MIT\
 **Source:** https://github.com/ccorbell/timeshow
@@ -50,13 +50,13 @@ Modes:
 
 Defaults:
 - `time=120` (2 minutes)
-- `max=0` (no limit to number of images in the sequence)
+- `max=10` (show 10 images; set to 0 for no limit)
 - `random=true`
 - `mode=shallow_dir`
 
 Optional args:
 - `time=90` sets image-display seconds; 120 seconds is the default if omitted
-- `max=50` limits how many images are selected; no limit if omitted (or 0)
+- `max=50` limits how many images are selected; set to 0 for no limit
 - `random=false` disables randomization, shows images in order
 
 ## UI Controls
@@ -64,6 +64,7 @@ Optional args:
 - `Back` and `Next` move between images
 - `Pause` / `Resume` toggles countdown
 - Keyboard: `Space` pause/resume, `Left` previous, `Right` next
+- `Export set` (shown in directory modes only) - export the current image set to a text file which can be used to repeat the slideshow
 
 ## Screenshots
 
