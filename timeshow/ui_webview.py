@@ -33,6 +33,10 @@ def _file_uri_to_path(image_url):
 class SlideshowApi:
     def __init__(self):
         self._resolved_src_cache = {}
+        self._window = None
+
+    def set_window(self, window):
+        self._window = window
 
     def resolve_image(self, image_url):
         if image_url in self._resolved_src_cache:
@@ -54,6 +58,36 @@ class SlideshowApi:
         resolved_src = f"data:{mime_type};base64,{encoded}"
         self._resolved_src_cache[image_url] = resolved_src
         return resolved_src
+
+    def save_image_list(self, image_urls):
+        if self._window is None:
+            return {"ok": False, "error": "Window not ready."}
+        try:
+            dest = self._window.create_file_dialog(
+                webview.SAVE_DIALOG,
+                save_filename="image_set.txt",
+                file_types=("Text files (*.txt)", "All files (*.*)"),
+            )
+        except Exception as exc:
+            return {"ok": False, "error": str(exc)}
+
+        if not dest:
+            return {"ok": False, "cancelled": True}
+
+        if isinstance(dest, (list, tuple)):
+            dest = dest[0]
+
+        try:
+            lines = []
+            for url in image_urls:
+                path = _file_uri_to_path(url)
+                lines.append(path if path else url)
+            with open(dest, "w", encoding="utf-8") as f:
+                f.write("\n".join(lines) + "\n")
+        except Exception as exc:
+            return {"ok": False, "error": f"Could not write file: {exc}"}
+
+        return {"ok": True}
 
 
 class ConfigApi:
@@ -161,7 +195,7 @@ class ConfigApi:
         return {"ok": True, "path": selected_path}
 
 
-def run_configuration_window(initial_config=None):
+def run_configuration_window(initial_config=None, error=None):
     defaults = {
         "mode": "shallow_dir",
         "path": "",
@@ -334,6 +368,7 @@ def run_configuration_window(initial_config=None):
 
   <script>
     const DEFAULT_CONFIG = {{DEFAULT_CONFIG_JSON}};
+    const INITIAL_ERROR = {{INITIAL_ERROR_JSON}};
 
     const modeSelect = document.getElementById('modeSelect');
     const pathInput = document.getElementById('pathInput');
@@ -451,12 +486,14 @@ def run_configuration_window(initial_config=None):
     randomInput.checked = Boolean(DEFAULT_CONFIG.random_order);
     applySeconds(Number(DEFAULT_CONFIG.time_s) || 120);
     setModeHint(modeSelect.value);
+    if (INITIAL_ERROR) showError(INITIAL_ERROR);
   </script>
 </body>
 </html>
 """
 
     html = html.replace("{{DEFAULT_CONFIG_JSON}}", json.dumps(defaults))
+    html = html.replace("{{INITIAL_ERROR_JSON}}", json.dumps(error or ""))
     api = ConfigApi(defaults)
     window = webview.create_window("timeshow setup", html=html, width=760, height=620, js_api=api)
     api.set_window(window)
@@ -464,7 +501,7 @@ def run_configuration_window(initial_config=None):
     return api.result
 
 
-def run_slideshow_window(image_urls, time_s=None):
+def run_slideshow_window(image_urls, time_s=None, mode=None):
     if not image_urls:
         return
 
@@ -535,7 +572,18 @@ def run_slideshow_window(image_urls, time_s=None):
 
     .timer {
       font-variant-numeric: tabular-nums;
-      min-width: 70px;
+      min-width: 44px;
+    }
+
+    .filename {
+      width: 100%;
+      text-align: center;
+      font-size: 13px;
+      color: #aaa;
+      padding: 4px 0 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .buttons {
@@ -557,6 +605,17 @@ def run_slideshow_window(image_urls, time_s=None):
     button:hover {
       background: #3a3a3a;
     }
+
+    .export-area {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .export-status {
+      font-size: 12px;
+      color: #aaa;
+    }
   </style>
 </head>
 <body>
@@ -567,19 +626,25 @@ def run_slideshow_window(image_urls, time_s=None):
     <div class=\"controls\">
       <div class=\"meta\">
         <span id=\"position\">Image 0 of 0</span>
-        <span class=\"timer\" id=\"timer\">0s</span>
+        <span class=\"timer\" id=\"timer\">0:00</span>
       </div>
       <div class=\"buttons\">
         <button id=\"backBtn\" type=\"button\">Back</button>
         <button id=\"pauseBtn\" type=\"button\">Pause</button>
         <button id=\"nextBtn\" type=\"button\">Next</button>
       </div>
+      <div class=\"export-area\" id=\"exportArea\" style=\"display:none\">
+        <button id=\"exportBtn\" type=\"button\">Export set\u2026</button>
+        <span class=\"export-status\" id=\"exportStatus\"></span>
+      </div>
+      <span class=\"filename\" id=\"filename\"></span>
     </div>
   </div>
 
   <script>
     const IMAGE_URLS = {{IMAGE_URLS_JSON}};
     const SECONDS_PER_IMAGE = {{SECONDS_PER_IMAGE}};
+    const MODE = {{MODE_JSON}};
 
     let index = 0;
     let remaining = SECONDS_PER_IMAGE;
@@ -593,6 +658,51 @@ def run_slideshow_window(image_urls, time_s=None):
     const nextBtn = document.getElementById('nextBtn');
 
     let renderToken = 0;
+
+    const filenameEl = document.getElementById('filename');
+    const exportArea = document.getElementById('exportArea');
+    const exportBtn = document.getElementById('exportBtn');
+    const exportStatus = document.getElementById('exportStatus');
+
+    if (MODE === 'shallow_dir' || MODE === 'deep_dir') {
+      exportArea.style.display = 'flex';
+    }
+
+    exportBtn.addEventListener('click', async () => {
+      const wasPaused = paused;
+      paused = true;
+      exportStatus.textContent = '';
+      updateView();
+
+      const response = await window.pywebview.api.save_image_list(IMAGE_URLS);
+
+      if (!response || response.cancelled) {
+        // user cancelled — restore silently
+      } else if (!response.ok) {
+        exportStatus.textContent = response.error || 'Save failed.';
+      } else {
+        exportStatus.textContent = 'Saved.';
+        setTimeout(() => { exportStatus.textContent = ''; }, 3000);
+      }
+
+      paused = wasPaused;
+      updateView();
+    });
+
+    function formatTime(seconds) {
+      const m = Math.floor(seconds / 60);
+      const s = seconds % 60;
+      return `${m}:${String(s).padStart(2, '0')}`;
+    }
+
+    function getFilename(url) {
+      if (!url) return '';
+      try {
+        return decodeURIComponent(url).split('/').pop() || '';
+      } catch (_) {
+        return url.split('/').pop() || '';
+      }
+    }
 
     async function resolveImageSource(imageUrl) {
       if (window.pywebview && window.pywebview.api && typeof window.pywebview.api.resolve_image === 'function') {
@@ -614,7 +724,8 @@ def run_slideshow_window(image_urls, time_s=None):
       }
       imageEl.src = resolvedSrc || '';
       positionEl.textContent = `Image ${index + 1} of ${IMAGE_URLS.length}`;
-      timerEl.textContent = `${remaining}s`;
+      timerEl.textContent = formatTime(remaining);
+      filenameEl.textContent = getFilename(imageUrl);
       pauseBtn.textContent = paused ? 'Resume' : 'Pause';
       backBtn.disabled = index === 0;
       nextBtn.disabled = IMAGE_URLS.length === 0;
@@ -705,8 +816,10 @@ def run_slideshow_window(image_urls, time_s=None):
 
     html = html.replace("{{IMAGE_URLS_JSON}}", json.dumps(image_urls))
     html = html.replace("{{SECONDS_PER_IMAGE}}", str(seconds_per_image))
+    html = html.replace("{{MODE_JSON}}", json.dumps(mode or ""))
 
     api = SlideshowApi()
-    webview.create_window("timeshow", html=html, width=1280, height=900, js_api=api)
+    window = webview.create_window("timeshow", html=html, width=1280, height=900, js_api=api)
+    api.set_window(window)
     webview.start()
 

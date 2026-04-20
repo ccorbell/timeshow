@@ -30,7 +30,7 @@ Modes:
 
 Options:
   time=<seconds>          Seconds to show each image (default: {DEFAULT_TIME_SECONDS})
-  max=<count>             Limit the number of selected images (default: 0 = no limit)
+  max=<count>             Limit the number of selected images (default: 10; 0 = no limit)
   random=<true|false>     Shuffle selected images before showing them (default: true)
   -h, --help              Show this help text
 """
@@ -87,9 +87,10 @@ def timeshow_main(mode, path, time_s, max_images, random_order):
             print(f"No image URLs were read from {path}")
         else:
             print(f"No images were found in the directory at {path}")
-        return
+        return False
 
-    run_slideshow_window(runner.selected_images, time_s)
+    run_slideshow_window(runner.selected_images, time_s, mode)
+    return True
 
     
 
@@ -97,7 +98,7 @@ if __name__ == '__main__':
     mode = "shallow_dir"
     path = None
     time_s = None
-    max_images = 0
+    max_images = 10
     random_order = True
 
     for arg in sys.argv[1:]:
@@ -134,23 +135,37 @@ if __name__ == '__main__':
             sys.exit(1)
 
     if not path:
-        config = run_configuration_window(
-            {
-                "mode": mode,
-                "path": "",
-                "time_s": time_s if time_s is not None else DEFAULT_TIME_SECONDS,
-                "max_images": max_images,
-                "random_order": random_order,
-            }
-        )
-        if config is None:
-            sys.exit(0)
+        config_error = None
+        initial_config = {
+            "mode": mode,
+            "path": "",
+            "time_s": time_s if time_s is not None else DEFAULT_TIME_SECONDS,
+            "max_images": max_images,
+            "random_order": random_order,
+        }
+        while True:
+            config = run_configuration_window(initial_config, error=config_error)
+            if config is None:
+                sys.exit(0)
 
-        mode = config.get("mode", mode)
-        path = config.get("path", path)
-        time_s = config.get("time_s", time_s)
-        max_images = config.get("max_images", max_images)
-        random_order = config.get("random_order", random_order)
+            mode = config.get("mode", mode)
+            path = config.get("path", path)
+            time_s = config.get("time_s", time_s)
+            max_images = config.get("max_images", max_images)
+            random_order = config.get("random_order", random_order)
+
+            validation_error = _validate_inputs(mode, path, time_s, max_images)
+            if validation_error is not None:
+                config_error = validation_error
+                initial_config = config
+                continue
+
+            found = timeshow_main(mode, path, time_s, max_images, random_order)
+            if found:
+                break
+            config_error = "No images were found at that path. Please choose another."
+            initial_config = config
+        sys.exit(0)
 
     validation_error = _validate_inputs(mode, path, time_s, max_images)
     if validation_error is not None:
