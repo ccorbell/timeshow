@@ -2,7 +2,7 @@
 
 Simple timed slideshow tool for artist reference practice.
 
-**Version:** 1.1\
+**Version:** 1.2\
 **Author:** C. A. Corbell\
 **License:** MIT\
 **Source:** https://github.com/ccorbell/timeshow
@@ -63,8 +63,14 @@ Optional args:
 
 - `Back` and `Next` move between images
 - `Pause` / `Resume` toggles countdown
-- Keyboard: `Space` pause/resume, `Left` previous, `Right` next
+- `−`, `Fit`, `+` zoom out, zoom to fit, and zoom in; click and drag to pan while zoomed
 - `Export set` (shown in directory modes only) - export the current image set to a text file which can be used to repeat the slideshow
+
+Keyboard shortcuts:
+- `Space` pause/resume
+- `Left` / `Right` previous/next image
+- `Cmd`+`+` / `Cmd`+`-` zoom in/out (macOS); `Ctrl`+`+` / `Ctrl`+`-` (Windows/Linux)
+- `Cmd`+`0` / `Ctrl`+`0` zoom to fit
 
 ## Screenshots
 

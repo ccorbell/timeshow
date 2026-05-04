@@ -537,19 +537,27 @@ def run_slideshow_window(image_urls, time_s=None, mode=None):
     }
 
     .stage {
+      position: relative;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    #zoomWrapper {
+      position: absolute;
+      inset: 0;
       display: flex;
       align-items: center;
       justify-content: center;
-      min-height: 0;
-      padding: 10px;
+      transform-origin: center center;
     }
 
-    .stage img {
-      width: 100%;
-      height: 100%;
+    #slideImage {
+      max-width: 100%;
+      max-height: 100%;
       object-fit: contain;
       user-select: none;
       -webkit-user-drag: none;
+      pointer-events: none;
     }
 
     .controls {
@@ -606,6 +614,24 @@ def run_slideshow_window(image_urls, time_s=None, mode=None):
       background: #3a3a3a;
     }
 
+    button:disabled {
+      opacity: 0.35;
+      cursor: default;
+    }
+
+    button:disabled:hover {
+      background: #2b2b2b;
+    }
+
+    .btn-divider {
+      width: 1px;
+      height: 22px;
+      background: #555;
+      margin: 0 4px;
+      align-self: center;
+      flex-shrink: 0;
+    }
+
     .export-area {
       display: flex;
       align-items: center;
@@ -621,7 +647,9 @@ def run_slideshow_window(image_urls, time_s=None, mode=None):
 <body>
   <div class=\"app\">
     <div class=\"stage\">
-      <img id=\"slideImage\" alt=\"Current reference image\" />
+      <div id=\"zoomWrapper\">
+        <img id=\"slideImage\" alt=\"Current reference image\" />
+      </div>
     </div>
     <div class=\"controls\">
       <div class=\"meta\">
@@ -632,6 +660,10 @@ def run_slideshow_window(image_urls, time_s=None, mode=None):
         <button id=\"backBtn\" type=\"button\">Back</button>
         <button id=\"pauseBtn\" type=\"button\">Pause</button>
         <button id=\"nextBtn\" type=\"button\">Next</button>
+        <span class=\"btn-divider\"></span>
+        <button id=\"zoomOutBtn\" type=\"button\" title=\"Zoom out (Ctrl/Cmd -)\">&#x2212;</button>
+        <button id=\"zoomFitBtn\" type=\"button\" title=\"Zoom to fit (Ctrl/Cmd 0)\">Fit</button>
+        <button id=\"zoomInBtn\" type=\"button\" title=\"Zoom in (Ctrl/Cmd +)\">+</button>
       </div>
       <div class=\"export-area\" id=\"exportArea\" style=\"display:none\">
         <button id=\"exportBtn\" type=\"button\">Export set\u2026</button>
@@ -658,6 +690,90 @@ def run_slideshow_window(image_urls, time_s=None, mode=None):
     const nextBtn = document.getElementById('nextBtn');
 
     let renderToken = 0;
+
+    const isMac = /Mac/i.test(navigator.platform);
+
+    const zoomWrapper = document.getElementById('zoomWrapper');
+    const zoomInBtn = document.getElementById('zoomInBtn');
+    const zoomOutBtn = document.getElementById('zoomOutBtn');
+    const zoomFitBtn = document.getElementById('zoomFitBtn');
+
+    const ZOOM_STEP = 1.5;
+    const ZOOM_MIN = 1.0;
+    const ZOOM_MAX = 8.0;
+
+    let zoomLevel = 1.0;
+    let panX = 0;
+    let panY = 0;
+    let isDragging = false;
+    let dragStartX = 0;
+    let dragStartY = 0;
+
+    function clampPan() {
+      const maxX = zoomWrapper.clientWidth * (zoomLevel - 1) / 2;
+      const maxY = zoomWrapper.clientHeight * (zoomLevel - 1) / 2;
+      panX = Math.max(-maxX, Math.min(maxX, panX));
+      panY = Math.max(-maxY, Math.min(maxY, panY));
+    }
+
+    function applyZoom() {
+      zoomWrapper.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomLevel})`;
+      zoomWrapper.style.cursor = zoomLevel > 1 ? 'grab' : 'default';
+      zoomOutBtn.disabled = zoomLevel <= ZOOM_MIN;
+      zoomInBtn.disabled = zoomLevel >= ZOOM_MAX;
+      zoomFitBtn.disabled = zoomLevel <= ZOOM_MIN;
+    }
+
+    function zoomIn() {
+      zoomLevel = Math.min(zoomLevel * ZOOM_STEP, ZOOM_MAX);
+      clampPan();
+      applyZoom();
+    }
+
+    function zoomOut() {
+      zoomLevel = Math.max(zoomLevel / ZOOM_STEP, ZOOM_MIN);
+      if (zoomLevel <= ZOOM_MIN) {
+        zoomLevel = ZOOM_MIN;
+        panX = 0;
+        panY = 0;
+      }
+      applyZoom();
+    }
+
+    function zoomFit() {
+      zoomLevel = ZOOM_MIN;
+      panX = 0;
+      panY = 0;
+      applyZoom();
+    }
+
+    zoomInBtn.addEventListener('click', zoomIn);
+    zoomOutBtn.addEventListener('click', zoomOut);
+    zoomFitBtn.addEventListener('click', zoomFit);
+
+    zoomWrapper.addEventListener('mousedown', (event) => {
+      if (zoomLevel <= ZOOM_MIN) return;
+      isDragging = true;
+      dragStartX = event.clientX - panX;
+      dragStartY = event.clientY - panY;
+      zoomWrapper.style.cursor = 'grabbing';
+      event.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (event) => {
+      if (!isDragging) return;
+      panX = event.clientX - dragStartX;
+      panY = event.clientY - dragStartY;
+      clampPan();
+      zoomWrapper.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomLevel})`;
+      zoomWrapper.style.cursor = 'grabbing';
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (!isDragging) return;
+      isDragging = false;
+      zoomWrapper.style.cursor = zoomLevel > ZOOM_MIN ? 'grab' : 'default';
+    });
 
     const filenameEl = document.getElementById('filename');
     const exportArea = document.getElementById('exportArea');
@@ -740,6 +856,10 @@ def run_slideshow_window(image_urls, time_s=None, mode=None):
         return;
       }
       index = Math.max(0, Math.min(newIndex, IMAGE_URLS.length - 1));
+      zoomLevel = ZOOM_MIN;
+      panX = 0;
+      panY = 0;
+      applyZoom();
       resetTimer();
       updateView();
     }
@@ -777,7 +897,17 @@ def run_slideshow_window(image_urls, time_s=None, mode=None):
     });
 
     document.addEventListener('keydown', (event) => {
-      if (event.key === ' ') {
+      const mod = isMac ? event.metaKey : event.ctrlKey;
+      if (mod && (event.key === '=' || event.key === '+')) {
+        event.preventDefault();
+        zoomIn();
+      } else if (mod && event.key === '-') {
+        event.preventDefault();
+        zoomOut();
+      } else if (mod && event.key === '0') {
+        event.preventDefault();
+        zoomFit();
+      } else if (event.key === ' ') {
         event.preventDefault();
         paused = !paused;
         updateView();
@@ -808,6 +938,7 @@ def run_slideshow_window(image_urls, time_s=None, mode=None):
       updateView();
     });
 
+    applyZoom();
     updateView();
   </script>
 </body>
