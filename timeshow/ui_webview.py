@@ -664,6 +664,9 @@ def run_slideshow_window(image_urls, time_s=None, mode=None):
         <button id=\"zoomOutBtn\" type=\"button\" title=\"Zoom out (Ctrl/Cmd -)\">&#x2212;</button>
         <button id=\"zoomFitBtn\" type=\"button\" title=\"Zoom to fit (Ctrl/Cmd 0)\">Fit</button>
         <button id=\"zoomInBtn\" type=\"button\" title=\"Zoom in (Ctrl/Cmd +)\">+</button>
+        <span class=\"btn-divider\"></span>
+        <button id=\"rotateCCWBtn\" type=\"button\" title=\"Rotate counter-clockwise\">&#x21BA;</button>
+        <button id=\"rotateCWBtn\" type=\"button\" title=\"Rotate clockwise\">&#x21BB;</button>
       </div>
       <div class=\"export-area\" id=\"exportArea\" style=\"display:none\">
         <button id=\"exportBtn\" type=\"button\">Export set\u2026</button>
@@ -695,6 +698,8 @@ def run_slideshow_window(image_urls, time_s=None, mode=None):
 
     const zoomWrapper = document.getElementById('zoomWrapper');
     const zoomInBtn = document.getElementById('zoomInBtn');
+    const rotateCCWBtn = document.getElementById('rotateCCWBtn');
+    const rotateCWBtn = document.getElementById('rotateCWBtn');
     const zoomOutBtn = document.getElementById('zoomOutBtn');
     const zoomFitBtn = document.getElementById('zoomFitBtn');
 
@@ -703,6 +708,7 @@ def run_slideshow_window(image_urls, time_s=None, mode=None):
     const ZOOM_MAX = 8.0;
 
     let zoomLevel = 1.0;
+    let rotation = 0;
     let panX = 0;
     let panY = 0;
     let isDragging = false;
@@ -717,7 +723,7 @@ def run_slideshow_window(image_urls, time_s=None, mode=None):
     }
 
     function applyZoom() {
-      zoomWrapper.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomLevel})`;
+      zoomWrapper.style.transform = `translate(${panX}px, ${panY}px) rotate(${rotation}deg) scale(${zoomLevel})`;
       zoomWrapper.style.cursor = zoomLevel > 1 ? 'grab' : 'default';
       zoomOutBtn.disabled = zoomLevel <= ZOOM_MIN;
       zoomInBtn.disabled = zoomLevel >= ZOOM_MAX;
@@ -747,9 +753,25 @@ def run_slideshow_window(image_urls, time_s=None, mode=None):
       applyZoom();
     }
 
+    function rotateCW() {
+      rotation = (rotation + 90) % 360;
+      panX = 0;
+      panY = 0;
+      applyZoom();
+    }
+
+    function rotateCCW() {
+      rotation = (rotation - 90 + 360) % 360;
+      panX = 0;
+      panY = 0;
+      applyZoom();
+    }
+
     zoomInBtn.addEventListener('click', zoomIn);
     zoomOutBtn.addEventListener('click', zoomOut);
     zoomFitBtn.addEventListener('click', zoomFit);
+    rotateCCWBtn.addEventListener('click', rotateCCW);
+    rotateCWBtn.addEventListener('click', rotateCW);
 
     zoomWrapper.addEventListener('mousedown', (event) => {
       if (zoomLevel <= ZOOM_MIN) return;
@@ -765,7 +787,7 @@ def run_slideshow_window(image_urls, time_s=None, mode=None):
       panX = event.clientX - dragStartX;
       panY = event.clientY - dragStartY;
       clampPan();
-      zoomWrapper.style.transform = `translate(${panX}px, ${panY}px) scale(${zoomLevel})`;
+      zoomWrapper.style.transform = `translate(${panX}px, ${panY}px) rotate(${rotation}deg) scale(${zoomLevel})`;
       zoomWrapper.style.cursor = 'grabbing';
     });
 
@@ -857,6 +879,7 @@ def run_slideshow_window(image_urls, time_s=None, mode=None):
       }
       index = Math.max(0, Math.min(newIndex, IMAGE_URLS.length - 1));
       zoomLevel = ZOOM_MIN;
+      rotation = 0;
       panX = 0;
       panY = 0;
       applyZoom();
